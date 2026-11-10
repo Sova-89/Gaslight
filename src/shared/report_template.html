@@ -1,0 +1,267 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Gaslight — отчёт</title>
+<!-- =====================================================================
+  Шаблон отчёта Gaslight. Мод подставляет данные (JSON) в строку "var D = ..." ниже.
+  Хочешь поменять вид отчёта — правь этот файл (он лежит рядом с Gaslight.dll),
+  пересобирать мод не нужно. Цвета — в :root, графики рисует canvas без библиотек.
+  Report template. The mod puts the report data (JSON) into the "var D = ..." line below.
+  To change how the report looks, edit this file (it sits next to Gaslight.dll); no rebuild needed.
+  Colors are in :root, charts are drawn on canvas without libraries.
+  ===================================================================== -->
+<style>
+:root{
+  color-scheme:light;
+  --bg:#f6f6f4; --surface:#ffffff; --border:#e2e1dc;
+  --text:#0b0b0b; --text2:#52514e; --muted:#8a8984;
+  --good:#1baf7a; --warn:#eda100; --bad:#e34948; --grid:#e8e7e2;
+  --s1:#2a78d6; --s2:#eb6834; --s3:#1baf7a; --s4:#eda100; --s5:#e87ba4; --s6:#008300; --s7:#6250d6; --s8:#e34948;
+  --self:#9a9890;
+}
+@media (prefers-color-scheme:dark){ :root:not([data-theme="light"]){
+  color-scheme:dark; --bg:#141413; --surface:#1e1e1c; --border:#33332f;
+  --text:#f0efec; --text2:#c3c2b7; --muted:#8a8984; --grid:#2c2c29;
+  --good:#199e70; --warn:#c98500; --bad:#e66767;
+  --s1:#3987e5; --s2:#d95926; --s3:#199e70; --s4:#c98500; --s5:#d55181; --s6:#008300; --s7:#9085e9; --s8:#e66767; --self:#7a7974; }}
+:root[data-theme="dark"]{
+  color-scheme:dark; --bg:#141413; --surface:#1e1e1c; --border:#33332f;
+  --text:#f0efec; --text2:#c3c2b7; --muted:#8a8984; --grid:#2c2c29;
+  --good:#199e70; --warn:#c98500; --bad:#e66767;
+  --s1:#3987e5; --s2:#d95926; --s3:#199e70; --s4:#c98500; --s5:#d55181; --s6:#008300; --s7:#9085e9; --s8:#e66767; --self:#7a7974; }
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--text);font:14px/1.45 system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;padding:16px}
+.wrap{max-width:1180px;margin:0 auto}
+h1{font-size:22px;margin:0 0 4px} h2{font-size:16px;margin:0 0 10px;font-weight:600}
+.sub{color:var(--text2);margin-bottom:16px}
+.cards{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:10px;margin-bottom:16px}
+.card{background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:12px 14px}
+.card .k{font-size:12px;color:var(--text2)} .card .v{font-size:24px;font-weight:600;margin-top:2px;font-variant-numeric:tabular-nums}
+.card .n{font-size:12px;color:var(--muted)}
+.panel{background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:14px 16px;margin-bottom:16px;position:relative}
+.verdict{font-size:15px}
+canvas{display:block;width:100%;height:auto}
+.legend{display:flex;flex-wrap:wrap;gap:6px 16px;font-size:12px;color:var(--text2);margin-top:6px}
+.legend span i{display:inline-block;width:10px;height:10px;border-radius:2px;margin-right:5px;vertical-align:-1px}
+.legend span.t i{background:repeating-linear-gradient(135deg,var(--c) 0 2px,transparent 2px 4px)}
+table{width:100%;border-collapse:collapse;font-size:13px}
+th,td{padding:6px 8px;border-bottom:1px solid var(--border);text-align:left;vertical-align:top}
+th{color:var(--text2);font-weight:600;font-size:12px;cursor:pointer;user-select:none;white-space:nowrap}
+td.num,th.num{text-align:right;font-variant-numeric:tabular-nums}
+tr.mod{cursor:pointer} tr.mod:hover{background:color-mix(in srgb,var(--text) 4%,transparent)}
+tr.meth td{color:var(--text2);font-size:12px} tr.meth td:first-child{padding-left:28px}
+.bar{height:6px;border-radius:3px;background:var(--s1);display:inline-block;vertical-align:middle;margin-right:6px}
+.dot{display:inline-block;width:10px;height:10px;border-radius:2px;margin-right:6px;vertical-align:-1px}
+.cat1{color:var(--bad)} .cat2{color:var(--s7)} .cat3{color:var(--warn)} .cat4{color:var(--s2)} .cat5{color:var(--text2)}
+.tip{position:absolute;pointer-events:none;background:var(--text);color:var(--bg);padding:6px 9px;border-radius:6px;font-size:12px;white-space:pre;display:none;z-index:5}
+.howto{color:var(--text2);font-size:13px} .howto li{margin-bottom:4px}
+.off{opacity:.55} .small{font-size:12px;color:var(--muted)}
+.ctrl{display:flex;gap:10px;align-items:center;margin-bottom:8px;font-size:12px;color:var(--text2);flex-wrap:wrap}
+.ctrl label{display:flex;gap:4px;align-items:center}
+@media (max-width:640px){body{padding:10px} .card .v{font-size:20px}}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1 data-t="h1">Gaslight — отчёт о нагрузке модов</h1>
+  <div class="sub" id="sub"></div>
+
+  <div class="cards" id="cards"></div>
+
+  <div class="panel"><h2 data-t="hVerdict">Вердикт</h2><div class="verdict" id="verdict"></div><div id="notes" class="small" style="margin-top:8px"></div></div>
+
+  <div class="panel">
+    <h2 data-t="hFps">FPS по времени</h2>
+    <div class="ctrl"><label><input type="checkbox" id="cbWorst" checked> <span data-t="lbWorst">показывать худший кадр секунды</span></label>
+      <label><input type="checkbox" id="cbSpikes" checked> <span data-t="lbSpikes">метки лагов</span></label>
+      <label><input type="checkbox" id="cbScenes" checked> <span data-t="lbScenes">смены сцен</span></label></div>
+    <canvas id="fps" height="260"></canvas>
+    <div class="legend"><span><i style="background:var(--s1)"></i><span data-t="lgFps">средний FPS за секунду</span></span><span><i style="background:var(--bad);opacity:.6"></i><span data-t="lgWorst">худший кадр секунды (высота — относительно самого длинного кадра; точное значение — при наведении)</span></span><span><i style="background:var(--bad)"></i><span data-t="lgSpike">▼ лаг</span></span><span><i style="background:var(--s7)"></i><span data-t="lgScene">│ смена сцены</span></span></div>
+    <div class="tip" id="tipFps"></div>
+  </div>
+
+  <div class="panel">
+    <h2 data-t="hStack">Нагрузка модов по секундам (мс на кадр)</h2>
+    <canvas id="stack" height="240"></canvas>
+    <div class="legend" id="stackLegend"></div>
+    <div class="tip" id="tipStack"></div>
+  </div>
+
+  <div class="panel">
+    <h2><span data-t="hMods">По DLL</span> <span class="small" data-t="hModsSub">(клик по строке — методы; клик по заголовку — сортировка)</span></h2>
+    <table id="mods"><thead><tr>
+      <th data-k="name">DLL</th><th class="num" data-k="msPerFrame" data-t="thMs">мс / кадр</th><th class="num" data-k="pct" data-t="thPct">% кадра</th>
+      <th class="num" data-k="maxFrameMs" data-t="thMax">макс. в одном кадре, мс</th><th class="num" data-k="calls" data-t="thCalls">вызовов</th><th class="num" data-k="hooksTotal" data-t="thMethods">методов</th>
+    </tr></thead><tbody></tbody></table>
+  </div>
+
+  <div class="panel">
+    <h2><span data-t="hSpikes">Лаги</span> <span class="small" id="spikeSub"></span></h2>
+    <table id="spikes"><thead><tr><th data-t="sTime">время</th><th class="num" data-t="sFrame">кадр, мс</th><th data-t="sCulprit">виновник</th><th data-t="sVerdict">вердикт</th><th data-t="sScene">сцена</th><th class="num">GC</th><th data-t="sMethods">топ методов</th><th data-t="sMods">топ модов</th></tr></thead><tbody></tbody></table>
+  </div>
+
+  <div class="panel">
+    <h2 data-t="hHow">Как читать</h2>
+    <ul class="howto">
+      <li data-t="how1"><b>мс / кадр</b> — сколько миллисекунд в среднем мод тратит в каждом кадре. При 60 FPS кадр длится 16,7 мс: мод с 2 мс/кадр съедает 12% бюджета.</li>
+      <li data-t="how2"><b>% кадра</b> — доля времени кадра, занятая кодом мода. Всё, что не попало в моды («остальное») — сама игра, физика, рендер и видеокарта: их Gaslight не измеряет.</li>
+      <li data-t="how3"><b>Лаг</b> — кадр длиннее <span id="spikeMin"></span> мс и в несколько раз длиннее обычного. Виновник: мод, занявший половину кадра → «мод»; рядом смена сцены → «загрузка сцены»; была сборка мусора → «GC»; моды вместе ≥ 25% → «несколько модов»; иначе — не моды.</li>
+      <li data-t="how4"><b>1% low</b> — средний FPS самых медленных 1% кадров: показывает, насколько неровно идёт игра. Остановки дольше 1 с (загрузки) в FPS и 1% low не входят, но видны в таблице лагов.</li>
+      <li data-t="how5">Корутины и обработчики событий ловятся не на 100%; строка <b>Gaslight</b> — нагрузка самого профайлера (цена одного замера ≈ <span id="pairCost"></span> нс).</li>
+      <li data-t="how6">Методы с пометкой <b>выкл</b> — самозащита отключила у них замер (очень много вызовов при ничтожном времени), чтобы профайлер сам не тормозил игру.</li>
+      <li data-t="how7">Если мод перехватывает метод игры (On.*) и вызывает оригинал, время самой игры в оригинале моду <b>не засчитывается</b>: оно считается отдельно и в лагах названо «игра внутри хука мода». Если оригинал вызывается не напрямую (передан в другой метод), его время всё же попадёт в мод.</li>
+    </ul>
+    <div class="small" id="settings"></div>
+  </div>
+</div>
+
+<script>
+var D = /*DATA*/;
+(function(){
+// ---------- язык: берётся из настройки Language мода (D.lang = "ru" или "en")
+var RU = !(D && D.lang === 'en');
+function T(ru, en){ return RU ? ru : en; }
+// Русский текст лежит прямо в разметке выше; английский - здесь, по ключам data-t.
+var EN = {
+  title:'Gaslight — report', h1:'Gaslight — mod load report', hVerdict:'Verdict', hFps:'FPS over time',
+  lbWorst:'show the worst frame of each second', lbSpikes:'spike markers', lbScenes:'scene changes',
+  lgFps:'average FPS per second',
+  lgWorst:'worst frame of the second (height is relative to the longest frame; exact value on hover)',
+  lgSpike:'▼ spike', lgScene:'│ scene change',
+  hStack:'Mod load per second (ms per frame)',
+  hMods:'By DLL', hModsSub:'(click a row for its methods; click a header to sort)',
+  thMs:'ms / frame', thPct:'% of frame', thMax:'max in one frame, ms', thCalls:'calls', thMethods:'methods',
+  hSpikes:'Spikes',
+  sTime:'time', sFrame:'frame, ms', sCulprit:'culprit', sVerdict:'verdict', sScene:'scene', sMethods:'top methods', sMods:'top mods',
+  hHow:'How to read this',
+  how1:'<b>ms / frame</b> — how many milliseconds a mod spends in each frame on average. At 60 FPS a frame lasts 16.7 ms: a mod using 2 ms/frame eats 12% of the budget.',
+  how2:'<b>% of frame</b> — the share of frame time taken by the mod\'s code. Everything that is not a mod (the "rest") is the game itself, physics, rendering and the GPU: Gaslight does not measure those.',
+  how3:'<b>Spike</b> — a frame longer than <span id="spikeMin"></span> ms and several times longer than usual. Culprit: a mod that took half the frame → "mod"; a scene change nearby → "scene load"; a garbage collection happened → "garbage collector"; mods together ≥ 25% → "several mods together"; otherwise → "not mods".',
+  how4:'<b>1% low</b> — the average FPS of the slowest 1% of frames: it shows how uneven the game runs. Stalls longer than 1 s (loading) are not counted in FPS or 1% low, but they show up in the spikes table.',
+  how5:'Coroutines and event handlers are not caught 100%; the <b>Gaslight</b> row is the load of the profiler itself (one measurement costs ≈ <span id="pairCost"></span> ns).',
+  how6:'Methods marked <b>off</b> had their measuring turned off by self-protection (a huge number of calls with negligible time) so the profiler does not slow the game down itself.',
+  how7:'When a mod hooks a game method (On.*) and calls the original, the time the game spends inside the original is <b>not charged to the mod</b>: it is counted separately and shown in spikes as "game inside a mod hook". If the original is not called directly (it is passed on to another method), its time is still counted for the mod.'
+};
+if (!RU) {
+  document.documentElement.lang = 'en';
+  document.title = EN.title;
+  var tr = document.querySelectorAll('[data-t]');
+  for (var q = 0; q < tr.length; q++) { var k = tr[q].getAttribute('data-t'); if (EN[k] != null) tr[q].innerHTML = EN[k]; }
+}
+var SELF = T('Gaslight (сам профайлер)', 'Gaslight (the profiler itself)');
+if (!D || !D.frames) { document.getElementById('verdict').textContent = T('Нет данных.', 'No data.'); return; }
+var css = getComputedStyle(document.documentElement);
+function v(n){ return css.getPropertyValue(n).trim(); }
+var SER = ['--s1','--s2','--s3','--s4','--s5','--s6','--s7','--s8'];
+function fmt(x,d){ return (x==null||isNaN(x))?'—':Number(x).toLocaleString(RU?'ru-RU':'en-US',{maximumFractionDigits:d==null?1:d,minimumFractionDigits:d==null?0:d}); }
+function tm(s){ s=Math.floor(s); return Math.floor(s/60)+':'+('0'+(s%60)).slice(-2); }
+function esc(s){ return String(s==null?'':s).replace(/[&<>"]/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c];}); }
+
+document.getElementById('sub').textContent = D.game+' · '+D.generated+T(' · длительность ',' · duration ')+tm(D.durationSec)+T(' · кадров ',' · frames ')+fmt(D.frames,0)+' · Gaslight '+D.version;
+var cards = [
+  [T('Средний FPS','Average FPS'), fmt(D.avgFps,0), T('кадр ','frame ')+fmt(D.avgMs,1)+T(' мс',' ms')],
+  ['1% low', fmt(D.low1Fps,0), T('худший кадр ','worst frame ')+fmt(D.worstMs,0)+T(' мс',' ms')+(D.stalls? T(' · остановок >1 с: ',' · stalls >1 s: ')+D.stalls : '')],
+  [T('Лагов','Spikes'), fmt(D.spikeTotal,0), D.spikeTotal? T('из них по вине модов ','caused by mods: ')+(D.spikeCategories[0]+D.spikeCategories[3]) : T('за сессию','this session')],
+  [T('Нагрузка модов','Mod load'), fmt(D.modMsPerFrame,2)+T(' мс',' ms'), fmt(D.modPct,1)+T('% кадра','% of frame')],
+  [T('Сам Gaslight','Gaslight itself'), fmt(D.selfMsPerFrame,2)+T(' мс',' ms'), fmt(D.selfPct,1)+T('% кадра · хуков ','% of frame · hooks ')+D.hookCount],
+  [T('Остальное','The rest'), fmt(D.restPct,0)+'%', T('игра, физика, видеокарта','game, physics, GPU')]
+];
+document.getElementById('cards').innerHTML = cards.map(function(c){return '<div class="card"><div class="k">'+c[0]+'</div><div class="v">'+c[1]+'</div><div class="n">'+c[2]+'</div></div>';}).join('');
+document.getElementById('verdict').textContent = D.verdict;
+if (D.notes && D.notes.length) document.getElementById('notes').innerHTML = D.notes.map(esc).join('<br>');
+document.getElementById('spikeMin').textContent = D.spikeMinMs;
+document.getElementById('pairCost').textContent = fmt(D.pairCostNs,0);
+document.getElementById('settings').innerHTML = T('Настройки: ','Settings: ') + Object.keys(D.settings||{}).map(function(k){return k+'='+esc(D.settings[k]);}).join(', ');
+
+// ---------- helpers canvas
+function setup(cv){ var r=cv.getBoundingClientRect(); var dpr=window.devicePixelRatio||1; cv.width=Math.round(r.width*dpr); cv.height=Math.round(cv.getAttribute('height')*dpr); cv.style.height=cv.getAttribute('height')+'px'; var g=cv.getContext('2d'); g.setTransform(dpr,0,0,dpr,0,0); return {g:g,w:r.width,h:+cv.getAttribute('height')}; }
+function axes(g,W,H,P,yMax,yStep,fmtY){ g.strokeStyle=v('--grid'); g.lineWidth=1; g.fillStyle=v('--text2'); g.font='11px system-ui'; g.textAlign='right'; g.textBaseline='middle';
+  for (var y=0;y<=yMax+1e-9;y+=yStep){ var py=P.t+(H-P.t-P.b)*(1-y/yMax); g.beginPath(); g.moveTo(P.l,py); g.lineTo(W-P.r,py); g.stroke(); g.fillText(fmtY(y),P.l-6,py);} }
+function niceMax(m){ if(m<=0) return 1; var p=Math.pow(10,Math.floor(Math.log10(m))); var n=m/p; var s=n<=1?1:n<=2?2:n<=2.5?2.5:n<=5?5:10; return s*p; }
+function xTicks(g,W,H,P,tMax){ var step=tMax>1800?300:tMax>600?60:tMax>120?30:10; g.fillStyle=v('--text2'); g.textAlign='center'; g.textBaseline='top'; for(var t=0;t<=tMax;t+=step){ var x=P.l+(W-P.l-P.r)*t/tMax; g.fillText(tm(t),x,H-P.b+4);} }
+
+var TL = D.timeline||[]; var tMax = Math.max(1, D.durationSec, TL.length?TL[TL.length-1].t+1:1);
+
+// ---------- FPS chart
+var fpsCv=document.getElementById('fps'), tipF=document.getElementById('tipFps');
+function drawFps(){
+  var c=setup(fpsCv), g=c.g, W=c.w, H=c.h, P={l:44,r:12,t:10,b:22};
+  var showWorst=document.getElementById('cbWorst').checked, showSp=document.getElementById('cbSpikes').checked, showSc=document.getElementById('cbScenes').checked;
+  var fpsMax=0; TL.forEach(function(r){ var f=r.avgMs>0?1000/r.avgMs:0; if(f>fpsMax) fpsMax=f; }); fpsMax=niceMax(fpsMax*1.1);
+  axes(g,W,H,P,fpsMax,fpsMax/5,function(y){return fmt(y,0);}); xTicks(g,W,H,P,tMax);
+  var X=function(t){return P.l+(W-P.l-P.r)*t/tMax;}, Y=function(f){return P.t+(H-P.t-P.b)*(1-f/fpsMax);};
+  if (showWorst){ // худший кадр секунды — как «штрихи» вниз от верха, масштаб по максимуму
+    var wMax=0; TL.forEach(function(r){ if(r.maxMs>wMax) wMax=r.maxMs; }); wMax=Math.max(wMax,1);
+    g.fillStyle=v('--bad'); g.globalAlpha=0.35;
+    var bw=Math.max(1,(W-P.l-P.r)/tMax);
+    TL.forEach(function(r){ var h=(H-P.t-P.b)*0.5*r.maxMs/wMax; g.fillRect(X(r.t),H-P.b-h,bw,h); });
+    g.globalAlpha=1;
+  }
+  if (showSc) { g.strokeStyle=v('--s7'); g.lineWidth=1; (D.scenes||[]).forEach(function(s){ var x=X(s.t); g.beginPath(); g.moveTo(x,P.t); g.lineTo(x,H-P.b); g.stroke(); }); }
+  g.strokeStyle=v('--s1'); g.lineWidth=2; g.lineJoin='round'; g.beginPath();
+  TL.forEach(function(r,i){ var f=r.avgMs>0?1000/r.avgMs:0; var x=X(r.t), y=Y(f); if(i===0) g.moveTo(x,y); else g.lineTo(x,y); }); g.stroke();
+  if (showSp) { g.fillStyle=v('--bad'); (D.spikes||[]).forEach(function(s){ var x=X(s.t); g.beginPath(); g.moveTo(x,P.t+2); g.lineTo(x-4,P.t-5+2); g.lineTo(x+4,P.t-5+2); g.closePath(); g.fill(); }); }
+  fpsCv._P=P; fpsCv._W=W; fpsCv._H=H;
+}
+fpsCv.addEventListener('mousemove',function(e){ var r=fpsCv.getBoundingClientRect(); var P=fpsCv._P; var t=(e.clientX-r.left-P.l)/(fpsCv._W-P.l-P.r)*tMax; var row=null,best=1e9; TL.forEach(function(q){ var d=Math.abs(q.t-t); if(d<best){best=d;row=q;} });
+  if(!row||best>tMax/TL.length*2){tipF.style.display='none';return;}
+  var sp=(D.spikes||[]).filter(function(s){return Math.floor(s.t)===row.t;});
+  var txt=tm(row.t)+'\nFPS '+fmt(row.avgMs>0?1000/row.avgMs:0,0)+T(' (кадр ',' (frame ')+fmt(row.avgMs,1)+T(' мс)\nхудший кадр ',' ms)\nworst frame ')+fmt(row.maxMs,0)+T(' мс\nмоды ',' ms\nmods ')+fmt(row.mod.slice(1).reduce(function(a,b){return a+b;},0),2)+T(' мс/кадр',' ms/frame');
+  sp.forEach(function(s){ txt+=T('\n▼ лаг ','\n▼ spike ')+fmt(s.ms,0)+T(' мс — ',' ms - ')+s.culprit; });
+  tipF.textContent=txt; tipF.style.display='block'; var pr=fpsCv.parentNode.getBoundingClientRect(); tipF.style.left=Math.min(e.clientX-pr.left+12, pr.width-220)+'px'; tipF.style.top=(e.clientY-pr.top-10)+'px'; });
+fpsCv.addEventListener('mouseleave',function(){tipF.style.display='none';});
+['cbWorst','cbSpikes','cbScenes'].forEach(function(id){document.getElementById(id).addEventListener('change',drawFps);});
+
+// ---------- stack chart: топ-7 модов + «другие» + Gaslight, фиксированные цвета по порядку
+var modsSorted=(D.mods||[]).slice(); var topIdx=modsSorted.slice(0,7).map(function(m){return m.idx;});
+var otherIdx=modsSorted.slice(7).map(function(m){return m.idx;});
+var series=topIdx.map(function(idx,i){return {name:D.modNames[idx],color:v(SER[i]),idx:[idx]};});
+if (otherIdx.length) series.push({name:T('другие (','others (')+otherIdx.length+')',color:v(SER[7]),idx:otherIdx});
+series.push({name:SELF,color:v('--self'),idx:[0]});
+function sval(r,s){ var t=0; s.idx.forEach(function(i){ t+= (r.mod[i]||0); }); return t; }
+var stackCv=document.getElementById('stack'), tipS=document.getElementById('tipStack');
+function drawStack(){
+  var c=setup(stackCv), g=c.g, W=c.w, H=c.h, P={l:44,r:12,t:10,b:22};
+  var yMax=0; TL.forEach(function(r){ var t=0; series.forEach(function(s){t+=sval(r,s);}); if(t>yMax) yMax=t; }); yMax=niceMax(yMax*1.1);
+  axes(g,W,H,P,yMax,yMax/4,function(y){return fmt(y,2);}); xTicks(g,W,H,P,tMax);
+  var X=function(t){return P.l+(W-P.l-P.r)*t/tMax;}, Y=function(val){return P.t+(H-P.t-P.b)*(1-val/yMax);};
+  var bw=Math.max(1,(W-P.l-P.r)/tMax);
+  TL.forEach(function(r){ var base=0; series.forEach(function(s){ var val=sval(r,s); if(val<=0) return; g.fillStyle=s.color; var y0=Y(base), y1=Y(base+val); g.fillRect(X(r.t), y1, bw+0.5, Math.max(0.5,y0-y1)); base+=val; }); });
+  stackCv._P=P; stackCv._W=W;
+}
+document.getElementById('stackLegend').innerHTML=series.map(function(s){return '<span><i style="background:'+s.color+'"></i>'+esc(s.name)+'</span>';}).join('');
+stackCv.addEventListener('mousemove',function(e){ var r=stackCv.getBoundingClientRect(); var P=stackCv._P; var t=(e.clientX-r.left-P.l)/(stackCv._W-P.l-P.r)*tMax; var row=null,best=1e9; TL.forEach(function(q){ var d=Math.abs(q.t-t); if(d<best){best=d;row=q;} });
+  if(!row){tipS.style.display='none';return;} var txt=tm(row.t); series.forEach(function(s){ var val=sval(row,s); if(val>0.0005) txt+='\n'+s.name+': '+fmt(val,2)+T(' мс',' ms'); });
+  tipS.textContent=txt; tipS.style.display='block'; var pr=stackCv.parentNode.getBoundingClientRect(); tipS.style.left=Math.min(e.clientX-pr.left+12,pr.width-240)+'px'; tipS.style.top=(e.clientY-pr.top-10)+'px'; });
+stackCv.addEventListener('mouseleave',function(){tipS.style.display='none';});
+
+// ---------- mods table
+var sortKey='msPerFrame', sortDir=-1;
+function colorOf(idx){ var i=topIdx.indexOf(idx); return i>=0? v(SER[i]) : (otherIdx.indexOf(idx)>=0? v(SER[7]) : v('--self')); }
+function drawMods(){
+  var tb=document.querySelector('#mods tbody'); var rows=(D.mods||[]).slice().sort(function(a,b){ var x=a[sortKey],y=b[sortKey]; if(typeof x==='string') return x.localeCompare(y)*sortDir; return (x-y)*sortDir; });
+  var maxMs=Math.max.apply(null,rows.map(function(m){return m.msPerFrame;}).concat([D.selfMsPerFrame,0.0001]));
+  var html='<tr class="mod"><td><span class="dot" style="background:'+v('--self')+'"></span>'+SELF+'</td><td class="num"><span class="bar" style="width:'+Math.round(80*D.selfMsPerFrame/maxMs)+'px;background:'+v('--self')+'"></span>'+fmt(D.selfMsPerFrame,3)+'</td><td class="num">'+fmt(D.selfPct,2)+'</td><td class="num">—</td><td class="num">—</td><td class="num">'+D.hookCount+T(' хуков',' hooks')+'</td></tr>';
+  rows.forEach(function(m,i){
+    html+='<tr class="mod" data-i="'+i+'"><td><span class="dot" style="background:'+colorOf(m.idx)+'"></span>'+esc(m.name)+'</td><td class="num"><span class="bar" style="width:'+Math.round(80*m.msPerFrame/maxMs)+'px;background:'+colorOf(m.idx)+'"></span>'+fmt(m.msPerFrame,3)+'</td><td class="num">'+fmt(m.pct,2)+'</td><td class="num">'+fmt(m.maxFrameMs,1)+'</td><td class="num">'+fmt(m.calls,0)+'</td><td class="num">'+m.hooksTotal+'</td></tr>';
+    m.hooks.forEach(function(h){ html+='<tr class="meth hid" data-p="'+i+'" style="display:none"><td class="'+(h.off?'off':'')+'">'+esc(h.name)+(h.off?' <span class="small">'+T('(выкл)','(off)')+'</span>':'')+'</td><td class="num">'+fmt(h.msPerFrame,4)+'</td><td class="num">'+fmt(h.totalMs*100/(D.avgMs*D.frames),2)+'</td><td class="num">'+fmt(h.maxMs,2)+'</td><td class="num">'+fmt(h.calls,0)+'</td><td></td></tr>'; });
+    if (m.hooksTotal>m.hooks.length) html+='<tr class="meth" data-p="'+i+'" style="display:none"><td colspan="6" class="small">… '+T('ещё ','and ')+(m.hooksTotal-m.hooks.length)+T(' методов — см. mods.csv',' more methods — see mods.csv')+'</td></tr>';
+  });
+  tb.innerHTML=html;
+  tb.querySelectorAll('tr.mod[data-i]').forEach(function(tr){ tr.addEventListener('click',function(){ var i=tr.getAttribute('data-i'); tb.querySelectorAll('tr.meth[data-p="'+i+'"]').forEach(function(x){ x.style.display=x.style.display==='none'?'':'none'; }); }); });
+}
+document.querySelectorAll('#mods th').forEach(function(th){ th.addEventListener('click',function(){ var k=th.getAttribute('data-k'); if(sortKey===k) sortDir=-sortDir; else { sortKey=k; sortDir=k==='name'?1:-1; } drawMods(); }); });
+
+// ---------- spikes table
+(function(){ var tb=document.querySelector('#spikes tbody'); var sp=D.spikes||[]; document.getElementById('spikeSub').textContent = sp.length<D.spikeTotal? T('(показаны '+sp.length+' самых длинных из '+D.spikeTotal+')','(showing the '+sp.length+' longest of '+D.spikeTotal+')') : '('+sp.length+')';
+  tb.innerHTML = sp.length? sp.map(function(s){ return '<tr><td>'+tm(s.t)+'</td><td class="num">'+fmt(s.ms,0)+'</td><td class="cat'+s.cat+'"><b>'+esc(s.culprit)+'</b></td><td>'+esc(s.verdict)+'</td><td>'+esc(s.scene)+'</td><td class="num">'+s.gc+'</td><td class="small">'+esc(s.methods)+'</td><td class="small">'+esc(s.mods)+'</td></tr>'; }).join('') : '<tr><td colspan="8" class="small">'+T('Лагов не было.','There were no spikes.')+'</td></tr>'; })();
+
+function all(){ drawFps(); drawStack(); } all(); drawMods();
+window.addEventListener('resize',all);
+if (window.matchMedia) window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change',function(){ css=getComputedStyle(document.documentElement); all(); drawMods(); });
+})();
+</script>
+</body>
+</html>

@@ -1,0 +1,17 @@
+# build output
+out/
+bin/
+obj/
+*.dll
+*.zip
+
+# files the mod creates next to the DLL while the game runs
+Reports/
+settings.txt
+quarantine.txt
+scan_guard.txt
+
+# editors
+.vs/
+*.user
+*.suo
